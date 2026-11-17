@@ -4,9 +4,9 @@ class ParticleSystem {
         this.particles = [];
     }
 
-    // 위치를 넘기면 그 지점에서, 없으면 origin에서 생성
-    addParticle(position) {
-        this.particles.push(new Particle(position ? position : this.origin));
+    // 위치와 클래스를 넘길 수 있다 (없으면 origin에서 Particle로 생성)
+    addParticle(position, type = Particle) {
+        this.particles.push(new type(position ? position : this.origin));
     }
 
     run() {

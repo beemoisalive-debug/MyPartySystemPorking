@@ -36,13 +36,14 @@ function draw() {
   if (emitTimer <= 0) {
     emitTimer = random(2.5, 9) * (1.45 - sob * 0.9);
     const system = random() < 0.5 ? tearsLeft : tearsRight;
-    system.addParticle();
+    // 가끔은 흘러내리다 꽃으로 피어나는 확장 입자
+    system.addParticle(null, random() < 0.45 ? MorphingTear : Particle);
   }
 
   // 흐느끼는 순간엔 두 눈에서 동시에
   if (random() < sob * 0.07) {
-    tearsLeft.addParticle();
-    tearsRight.addParticle();
+    tearsLeft.addParticle(null, MorphingTear);
+    tearsRight.addParticle(null, MorphingTear);
   }
 
   tearsLeft.run();
