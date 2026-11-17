@@ -4,8 +4,9 @@ class ParticleSystem {
         this.particles = [];
     }
 
-    addParticle() {
-        this.particles.push(new Particle(this.origin));
+    // 위치를 넘기면 그 지점에서, 없으면 origin에서 생성
+    addParticle(position) {
+        this.particles.push(new Particle(position ? position : this.origin));
     }
 
     run() {
