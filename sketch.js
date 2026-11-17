@@ -14,6 +14,7 @@ const TEAR_L = { x: FACE.cx - EYE.dx - 22, y: FACE.cy + EYE.y + 14 };
 const TEAR_R = { x: FACE.cx + EYE.dx + 22, y: FACE.cy + EYE.y + 14 };
 
 let sob = 0;        // 흐느끼는 정도 (0~1)
+let sobBoost = 0;   // 클릭했을 때 잠깐 더 세지는 흐느낌
 let emitTimer = 0;
 
 function setup() {
@@ -26,8 +27,9 @@ function setup() {
 function draw() {
   drawBackground();
 
-  // 천천히 커졌다 작아지는 흐느낌
-  sob = 0.35 + 0.65 * noise(frameCount * 0.008);
+  // 천천히 커졌다 작아지는 흐느낌 (클릭하면 잠깐 더 세진다)
+  sobBoost *= 0.96;
+  sob = constrain(0.35 + 0.65 * noise(frameCount * 0.008) + sobBoost, 0, 1);
 
   drawGirl();
 
@@ -48,6 +50,21 @@ function draw() {
 
   tearsLeft.run();
   tearsRight.run();
+}
+
+// 화면을 누를 때마다 소녀의 두 눈에서 눈물이 터진다
+function mousePressed() {
+  // 캔버스 밖(설명 글 등)을 누른 경우는 무시
+  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+
+  sobBoost = 0.7;   // 흐느낌이 세지면서 입 모양도 일그러진다
+
+  for (let i = 0; i < 6; i++) {
+    // 절반은 눈물, 절반은 꽃으로 피어나는 확장 입자
+    const type = i % 2 === 0 ? MorphingTear : Particle;
+    tearsLeft.addParticle(null, type);
+    tearsRight.addParticle(null, type);
+  }
 }
 
 function drawBackground() {
