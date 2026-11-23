@@ -45,14 +45,13 @@
       const Wind = {
         v: null,        // 현재 바람 벡터
         target: null,   // 목표 바람 벡터
-        gust: 0,        // 돌풍 (순간적으로 세짐)
 
         init() {
           this.v = createVector(0, 0);
           this.target = createVector(0, 0);
         },
 
-        // 마우스 위치 / 방향키 / 돌풍을 하나의 힘으로 합친다
+        // 마우스 위치 / 방향키를 하나의 힘으로 합친다
         update() {
           let base = 0;
 
@@ -67,14 +66,8 @@
           // 아주 약한 자연 바람 (없으면 정지해 보인다)
           base += (noise(frameCount * 0.0035) * 2 - 1) * 0.35;
 
-          this.gust *= 0.95;
-
-          this.target.set(base + this.gust, 0);
+          this.target.set(base, 0);
           this.v.lerp(this.target, 0.06);
-        },
-
-        blow(n) {
-          this.gust += n;
         },
       };
 
@@ -443,7 +436,7 @@
         textAlign(LEFT, BOTTOM);
         textSize(11);
         text(
-          "마우스 좌우: 바람   ·   누르고 있기: 눈물   ·   ← →: 바람   ·   ↑: 돌풍   ·   R: 꽃밭 비우기",
+          "마우스 좌우: 바람   ·   누르고 있기: 눈물   ·   ← →: 바람   ·   R: 꽃밭 비우기",
           18,
           height - 10
         );
@@ -594,17 +587,12 @@
           tearsLeft.emit();
           tearsRight.emit();
         }
-        Wind.blow(random() < 0.5 ? -1.6 : 1.6);
       }
 
       function keyPressed() {
         if (key === "r" || key === "R") {
           garden.particles.length = 0;
           pollen.particles.length = 0;
-        }
-        if (keyCode === UP_ARROW) {
-          Wind.blow(2.4);
-          sobBoost = 0.5;
         }
         return false; // 방향키로 페이지가 스크롤되지 않도록
       }
