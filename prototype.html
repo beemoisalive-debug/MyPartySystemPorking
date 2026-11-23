@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>눈물이 꽃밭이 된다 — prototype</title>
+    <script src="lib/p5.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <style>
+      body { background: #0b0a12; }
+      main { display: flex; justify-content: center; align-items: center; }
+    </style>
+  </head>
+  <body>
+    <main></main>
+
+    <script>
+      /* ============================================================
+         눈물 → 꽃밭  (prototype)
+
+         구조
+           Wind ......... 외부 힘(바람)의 출처. 시스템도 입자도 아님
+           ParticleSystem ... 입자들을 관리하는 기본 시스템
+             ├ TearSystem .... 눈에서 떨어지는 눈물 (TearDrop 관리)
+             ├ Garden ........ 땅에 내린 눈물이 피워낸 꽃 (Bloom 관리)
+             └ PollenField ... 꽃에서 올라오는 꽃가루 (Pollen 관리)
+
+         흐름
+           눈 → 눈물 → 중력+바람으로 낙하 → 땅에 닿으면 그 자리에 꽃이 핀다
+           → 다 핀 꽃은 꽃가루를 내보낸다 → 꽃가루도 바람에 흔들린다
+           → 꽃도 바람에 줄기가 휜다 (모든 입자가 같은 Wind를 공유)
+         ============================================================ */
+
+      // ---------- 화면 설정 ----------
+      const GROUND_Y = 496;
+      const MAX_BLOOMS = 120;
+      const MAX_POLLEN = 260;
+
+      // 얼굴 기준 좌표
+      const FACE = { cx: 380, cy: 200, w: 190, h: 226 };
+      const EYE = { y: 6, dx: 44, w: 50, h: 32 };
+      const TEAR_L = { x: FACE.cx - EYE.dx - 21, y: FACE.cy + EYE.y + 13 };
+      const TEAR_R = { x: FACE.cx + EYE.dx + 21, y: FACE.cy + EYE.y + 13 };
+
+      // ---------- 외부 힘: 바람 ----------
+      const Wind = {
+        v: null,        // 현재 바람 벡터
+        target: null,   // 목표 바람 벡터
+        gust: 0,        // 돌풍 (순간적으로 세짐)
+
+        init() {
+          this.v = createVector(0, 0);
+          this.target = createVector(0, 0);
+        },
+
+        // 마우스 위치 / 방향키 / 돌풍을 하나의 힘으로 합친다
+        update() {
+          let base = 0;
+
+          // 마우스가 캔버스 안에 있으면 좌우 위치가 바람이 된다
+          if (mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
+            base += map(mouseX, 0, width, -1.6, 1.6);
+          }
+          // 방향키
+          if (keyIsDown(LEFT_ARROW)) base -= 1.6;
+          if (keyIsDown(RIGHT_ARROW)) base += 1.6;
+
+          // 아주 약한 자연 바람 (없으면 정지해 보인다)
+          base += (noise(frameCount * 0.0035) * 2 - 1) * 0.35;
+
+          this.gust *= 0.95;
+
+          this.target.set(base + this.gust, 0);
+          this.v.lerp(this.target, 0.06);
+        },
+
+        blow(n) {
+          this.gust += n;
+        },
+      };
+
+      // ---------- 기본 시스템 ----------
+      class ParticleSystem {
+        constructor() {
+          this.particles = [];
+        }
+        add(p) {
+          this.particles.push(p);
+          return p;
+        }
+        // 모든 시스템이 같은 외부 힘을 받는다
+        run() {
+          for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.update(Wind.v);
+            p.display();
+            if (p.dead) this.particles.splice(i, 1);
+          }
+        }
+        get count() {
+          return this.particles.length;
+        }
+      }
+
+      // ---------- 눈물 ----------
+      class TearDrop {
+        constructor(pos) {
+          this.pos = pos.copy();
+          this.prev = pos.copy();
+          this.vel = createVector(random(-0.85, 0.85), random(0.4, 1.0));
+          this.size = random(3.2, 5.4);
+          this.life = 255;
+          this.dead = false;
+          this.landed = false;
+        }
+
+        update(wind) {
+          this.prev = this.pos.copy();
+
+          // 외부 힘: 바람
+          this.vel.x += wind.x * 0.055;
+          // 중력
+          this.vel.y += 0.13;
+
+          this.vel.mult(0.998);
+          this.vel.y = constrain(this.vel.y, 0.2, 4.2);
+          this.pos.add(this.vel);
+
+          if (this.pos.y >= GROUND_Y) {
+            this.pos.y = GROUND_Y;
+            this.landed = true;
+            this.dead = true;
+          }
+          if (this.pos.x < -60 || this.pos.x > width + 60) this.dead = true;
+        }
+
+        display() {
+          if (this.landed) return;
+          const a = 230;
+
+          // 지나간 자리의 젖은 흔적
+          stroke(150, 205, 255, 55);
+          strokeWeight(this.size * 0.9);
+          line(this.prev.x, this.prev.y, this.pos.x, this.pos.y);
+
+          noStroke();
+          fill(175, 218, 255, 120);
+          this.tear(this.size * 1.45);
+          fill(210, 240, 255, 225);
+          this.tear(this.size * 0.8);
+          fill(255, 255, 255, 200);
+          ellipse(this.pos.x - this.size * 0.3, this.pos.y + this.size * 0.1, this.size * 0.4);
+        }
+
+        tear(r) {
+          const x = this.pos.x;
+          const y = this.pos.y;
+          const steps = 10;
+          const curve = (a, b, c, d, t) =>
+            pow(1 - t, 3) * a + 3 * pow(1 - t, 2) * t * b +
+            3 * (1 - t) * t * t * c + pow(t, 3) * d;
+
+          beginShape();
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            vertex(x + curve(0, 0.95 * r, r, 0, t), y + curve(-1.5 * r, -0.55 * r, r, r, t));
+          }
+          for (let i = steps - 1; i >= 0; i--) {
+            const t = i / steps;
+            vertex(x - curve(0, 0.95 * r, r, 0, t), y + curve(-1.5 * r, -0.55 * r, r, r, t));
+          }
+          endShape(CLOSE);
+        }
+      }
+
+      class TearSystem extends ParticleSystem {
+        constructor(origin) {
+          super();
+          this.origin = origin.copy();
+        }
+        emit() {
+          this.add(new TearDrop(this.origin));
+        }
+      }
+
+      // ---------- 꽃 ----------
+      const PETAL_COLORS = [
+        [255, 186, 214],
+        [255, 216, 168],
+        [205, 190, 255],
+        [180, 224, 255],
+        [255, 240, 210],
+      ];
+
+      class Bloom {
+        constructor(x, y) {
+          this.base = createVector(x, y);
+          this.scale = random(0.72, 1.12);   // 앞뒤 깊이감
+          this.height = random(26, 74) * this.scale;
+          this.grow = 0;          // 줄기가 자라는 정도 0~1
+          this.open = 0;          // 꽃잎이 열린 정도 0~1
+          this.angle = random(-0.12, 0.12);
+          this.angVel = 0;
+          this.petals = floor(random(5, 8));
+          this.color = random(PETAL_COLORS);
+          this.spin = random(TWO_PI);
+          this.age = 0;
+          this.wither = 1;        // 1 → 0 (시들면 사라진다)
+          this.dead = false;
+          this.ready = false;     // 꽃가루를 내보낼 수 있는 상태
+          this.lean = (x - width / 2) * 0.0004;
+        }
+
+        // 바람은 줄기를 휘게 하는 힘으로 작용한다
+        update(wind) {
+          this.age++;
+
+          if (this.grow < 1) {
+            this.grow = min(1, this.grow + 0.022);
+          } else if (this.open < 1) {
+            this.open = min(1, this.open + 0.028);
+          }
+          if (this.open >= 1) this.ready = true;
+
+          // 바람 → 각가속도
+          this.angVel += wind.x * 0.0035 * (0.25 + this.open * 0.75);
+          // 원래 자세로 돌아가려는 스프링
+          this.angVel += (-this.angle + this.lean) * 0.02;
+          this.angVel *= 0.93;
+          this.angle += this.angVel;
+
+          if (this.wither < 1) {
+            this.wither -= 0.02;
+            if (this.wither <= 0) this.dead = true;
+          }
+        }
+
+        tip() {
+          const h = this.height * this.grow;
+          return createVector(
+            this.base.x + sin(this.angle) * h,
+            this.base.y - cos(this.angle) * h
+          );
+        }
+
+        display() {
+          const h = this.height * this.grow;
+          const tip = this.tip();
+          const a = 255 * this.wither;
+
+          // 줄기
+          stroke(120, 160, 120, a * 0.9);
+          strokeWeight(2 * this.scale);
+          noFill();
+          const cx = this.base.x + sin(this.angle) * h * 0.35;
+          const cy = this.base.y - h * 0.6;
+          beginShape();
+          for (let i = 0; i <= 12; i++) {
+            const t = i / 12;
+            const u = 1 - t;
+            vertex(
+              u * u * this.base.x + 2 * u * t * cx + t * t * tip.x,
+              u * u * this.base.y + 2 * u * t * cy + t * t * tip.y
+            );
+          }
+          endShape();
+
+          // 잎
+          if (this.grow > 0.5) {
+            const lx = this.base.x + sin(this.angle) * h * 0.3;
+            const ly = this.base.y - h * 0.42;
+            noStroke();
+            fill(110, 150, 115, a * 0.8);
+            ellipse(lx, ly, 9 * this.grow * this.scale, 4.5 * this.grow * this.scale);
+            ellipse(lx + 7 * this.scale, ly - 6 * this.scale, 7 * this.grow * this.scale, 4 * this.grow * this.scale);
+          }
+
+          if (this.open <= 0.01) return;
+
+          // 꽃잎
+          push();
+          translate(tip.x, tip.y);
+          rotate(this.spin + this.angle * 0.6);
+          noStroke();
+          const size = 7.4 * this.open * this.scale;
+          for (let i = 0; i < this.petals; i++) {
+            rotate(TWO_PI / this.petals);
+            fill(this.color[0], this.color[1], this.color[2], a * 0.9);
+            ellipse(0, -size * 0.8, size * 0.62, size * 1.15);
+          }
+          fill(255, 246, 200, a);
+          ellipse(0, 0, size * 0.55, size * 0.55);
+          pop();
+        }
+      }
+
+      class Garden extends ParticleSystem {
+        constructor(y) {
+          super();
+          this.y = y;
+        }
+
+        // 눈물이 땅에 닿은 자리에 꽃을 심는다
+        plant(x) {
+          // 살짝 흩어지게 해서 두 덩어리로 뭉치지 않도록
+          let px = x + random(-14, 14);
+          for (let i = 0; i < this.particles.length; i++) {
+            if (abs(this.particles[i].base.x - px) < 8) {
+              px += random(-10, 10);
+              break;
+            }
+          }
+          px = constrain(px, 14, width - 14);
+
+          // 너무 많으면 가장 오래된 꽃부터 시든다
+          const living = this.particles.filter((b) => b.wither >= 1);
+          if (living.length >= MAX_BLOOMS) living[0].wither = Math.min(living[0].wither, 0.98);
+
+          return this.add(new Bloom(px, this.y + random(-6, 14)));
+        }
+      }
+
+      // ---------- 꽃가루 ----------
+      class Pollen {
+        constructor(pos) {
+          this.pos = pos.copy();
+          this.vel = createVector(random(-0.35, 0.35), random(-1.2, -0.45));
+          this.size = random(1.2, 2.6);
+          this.life = 255;
+          this.dead = false;
+          this.seed = random(1000);
+        }
+
+        update(wind) {
+          // 바람 + 아주 약한 유체 흔들림
+          this.vel.x += wind.x * 0.02;
+          this.vel.x += (noise(this.seed, frameCount * 0.006) - 0.5) * 0.04;
+          this.vel.y -= 0.002;
+          this.vel.mult(0.988);
+
+          this.pos.add(this.vel);
+          this.life -= 0.6;
+
+          if (this.life <= 0 || this.pos.y < -30 || this.pos.x < -40 || this.pos.x > width + 40) {
+            this.dead = true;
+          }
+        }
+
+        display() {
+          const a = constrain(this.life, 0, 255);
+          noStroke();
+          // 빛을 더하는 방식으로 그려서 어두운 배경에서 은은하게 빛나게
+          blendMode(ADD);
+          fill(255, 214, 130, a * 0.055);
+          ellipse(this.pos.x, this.pos.y, this.size * 7);
+          fill(255, 236, 180, a * 0.7);
+          ellipse(this.pos.x, this.pos.y, this.size * 1.3);
+          blendMode(BLEND);
+        }
+      }
+
+      class PollenField extends ParticleSystem {
+        release(pos) {
+          if (this.particles.length >= MAX_POLLEN) return;
+          this.add(new Pollen(pos));
+        }
+      }
+
+      // ---------- 상태 ----------
+      let tearsLeft, tearsRight, garden, pollen;
+      let ripples = [];
+      let sob = 0;
+      let sobBoost = 0;
+      let emitTimer = 0;
+
+      function setup() {
+        const c = createCanvas(760, 540);
+        c.parent(document.querySelector("main"));
+        noStroke();
+        Wind.init();
+
+        tearsLeft = new TearSystem(createVector(TEAR_L.x, TEAR_L.y));
+        tearsRight = new TearSystem(createVector(TEAR_R.x, TEAR_R.y));
+        garden = new Garden(GROUND_Y);
+        pollen = new PollenField();
+      }
+
+      function draw() {
+        Wind.update();
+
+        sobBoost *= 0.96;
+        sob = constrain(0.35 + 0.65 * noise(frameCount * 0.008) + sobBoost, 0, 1);
+
+        drawBackground();
+        drawGround();
+        drawGirl();
+
+        // 눈물 생성 — 마우스를 누르고 있는 동안에만 흘러나온다
+        if (mouseIsPressed && insideCanvas()) {
+          emitTimer -= 1;
+          if (emitTimer <= 0) {
+            emitTimer = random(1.2, 4.5) * (1.4 - sob * 0.85);
+            tearsLeft.emit();
+            tearsRight.emit();
+          }
+        }
+
+        drawRipples();
+
+        // 1) 눈물: 떨어지다 땅에 닿으면 꽃을 심는다
+        for (const s of [tearsLeft, tearsRight]) {
+          for (let i = s.particles.length - 1; i >= 0; i--) {
+            const p = s.particles[i];
+            p.update(Wind.v);
+            p.display();
+            if (p.landed) {
+              garden.plant(p.pos.x);
+              ripples.push({ x: p.pos.x, y: GROUND_Y, r: 2, a: 150 });
+            }
+            if (p.dead) s.particles.splice(i, 1);
+          }
+        }
+
+        // 2) 꽃: 바람에 휘고, 다 피면 꽃가루를 내보낸다
+        for (let i = garden.particles.length - 1; i >= 0; i--) {
+          const b = garden.particles[i];
+          b.update(Wind.v);
+          b.display();
+          if (b.ready && b.wither >= 1 && random() < 0.0025) {
+            pollen.release(b.tip());
+          }
+          if (b.dead) garden.particles.splice(i, 1);
+        }
+
+        // 3) 꽃가루
+        pollen.run();
+
+        drawHud();
+      }
+
+      function drawHud() {
+        noStroke();
+        fill(220, 226, 255, 120);
+        textAlign(LEFT, BOTTOM);
+        textSize(11);
+        text(
+          "마우스 좌우: 바람   ·   누르고 있기: 눈물   ·   ← →: 바람   ·   ↑: 돌풍   ·   R: 꽃밭 비우기",
+          18,
+          height - 10
+        );
+        textAlign(RIGHT, BOTTOM);
+        fill(255, 226, 180, 150);
+        text(`꽃 ${garden.count}   꽃가루 ${pollen.count}`, width - 18, height - 10);
+      }
+
+      function drawRipples() {
+        noStroke();
+        for (let i = ripples.length - 1; i >= 0; i--) {
+          const r = ripples[i];
+          r.r += 0.8;
+          r.a -= 7;
+          if (r.a <= 0) {
+            ripples.splice(i, 1);
+            continue;
+          }
+          fill(160, 205, 255, r.a * 0.5);
+          ellipse(r.x, r.y, r.r * 3, r.r * 0.8);
+        }
+      }
+
+      function drawBackground() {
+        noStroke();
+        for (let y = 0; y < height; y += 4) {
+          const t = y / height;
+          fill(lerpColor(color(24, 20, 38), color(7, 7, 14), t));
+          rect(0, y, width, 4);
+        }
+        const g = drawingContext.createRadialGradient(
+          FACE.cx, FACE.cy + 10, 30,
+          FACE.cx, FACE.cy + 10, 330
+        );
+        g.addColorStop(0, "rgba(125, 155, 255, 0.16)");
+        g.addColorStop(1, "rgba(125, 155, 255, 0)");
+        drawingContext.fillStyle = g;
+        drawingContext.fillRect(0, 0, width, height);
+      }
+
+      function drawGround() {
+        noStroke();
+        // 흙
+        fill(14, 14, 22);
+        rect(0, GROUND_Y, width, height - GROUND_Y);
+
+        // 땅 위에 번지는 은은한 빛 (꽃밭의 온기)
+        const g = drawingContext.createRadialGradient(
+          width / 2, GROUND_Y, 20,
+          width / 2, GROUND_Y, 380
+        );
+        g.addColorStop(0, "rgba(110, 195, 180, 0.10)");
+        g.addColorStop(1, "rgba(110, 195, 180, 0)");
+        drawingContext.fillStyle = g;
+        drawingContext.fillRect(0, GROUND_Y - 220, width, 220);
+
+        // 땅의 경계
+        fill(46, 44, 66, 170);
+        rect(0, GROUND_Y - 1, width, 1.5);
+      }
+
+      function drawGirl() {
+        const hair = color(34, 28, 48);
+        const skin = color(245, 214, 196);
+        const skinShade = color(228, 187, 176);
+
+        push();
+        translate(FACE.cx, FACE.cy + sin(frameCount * 0.09) * 1.5);
+
+        noStroke();
+        fill(hair);
+        ellipse(0, 62, 316, 440);
+
+        fill(skin);
+        ellipse(0, 0, FACE.w, FACE.h);
+
+        fill(skinShade);
+        ellipse(0, 38, 142, 110);
+
+        // 앞머리
+        fill(hair);
+        beginShape();
+        for (let x = -116; x <= 116; x += 6) {
+          const inside = sqrt(max(0, 1 - sq(x / 158)));
+          vertex(x, 62 - 220 * inside + 3);
+        }
+        for (let x = 116; x >= -116; x -= 6) {
+          const t = x / 110;
+          vertex(x, -43 - 10 * cos((t * PI) / 2));
+        }
+        endShape(CLOSE);
+
+        fill(hair);
+        ellipse(-92, 6, 38, 200);
+        ellipse(92, 6, 38, 200);
+
+        // 눈썹
+        stroke(84, 60, 72);
+        strokeWeight(5);
+        line(-70, -16, -22, -29);
+        line(70, -16, 22, -29);
+
+        // 감은 눈
+        stroke(66, 46, 58);
+        strokeWeight(5);
+        arc(-EYE.dx, EYE.y, EYE.w, EYE.h, PI, TWO_PI);
+        arc(EYE.dx, EYE.y, EYE.w, EYE.h, PI, TWO_PI);
+
+        strokeWeight(3);
+        line(-EYE.dx - EYE.w / 2, EYE.y, -EYE.dx - EYE.w / 2 - 9, EYE.y + 7);
+        line(EYE.dx + EYE.w / 2, EYE.y, EYE.dx + EYE.w / 2 + 9, EYE.y + 7);
+
+        // 코
+        noFill();
+        stroke(212, 166, 158);
+        strokeWeight(3);
+        arc(0, 42, 17, 13, 0.15, PI - 0.15);
+
+        // 입
+        stroke(150, 90, 100);
+        strokeWeight(4);
+        arc(0, 74, 42 + sob * 10, 24 + sob * 12, PI, TWO_PI);
+
+        // 볼터치
+        noStroke();
+        fill(236, 128, 148, 55);
+        ellipse(-56, 44, 54, 26);
+        ellipse(56, 44, 54, 26);
+
+        // 눈꼬리에 맺힌 눈물
+        fill(190, 230, 255, 220);
+        ellipse(-EYE.dx - 21, EYE.y + 13, 6, 7);
+        ellipse(EYE.dx + 21, EYE.y + 13, 6, 7);
+
+        pop();
+      }
+
+      // ---------- 입력 ----------
+      function insideCanvas() {
+        return mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height;
+      }
+
+      function mousePressed() {
+        if (!insideCanvas()) return;
+        sobBoost = 0.7;
+        // 누르기 시작할 때 한 번 터진다
+        for (let i = 0; i < 3; i++) {
+          tearsLeft.emit();
+          tearsRight.emit();
+        }
+        Wind.blow(random() < 0.5 ? -1.6 : 1.6);
+      }
+
+      function keyPressed() {
+        if (key === "r" || key === "R") {
+          garden.particles.length = 0;
+          pollen.particles.length = 0;
+        }
+        if (keyCode === UP_ARROW) {
+          Wind.blow(2.4);
+          sobBoost = 0.5;
+        }
+        return false; // 방향키로 페이지가 스크롤되지 않도록
+      }
+    </script>
+  </body>
+</html>
