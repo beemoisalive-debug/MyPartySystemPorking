@@ -1,25 +1,39 @@
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
-  align-content: center;
   text-align: center;
   color: #eee;
   font-family: "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: #000;
-}
-
-.intro {
-  width: 720px;
-  margin: 0 auto;
-  font-size: 1.3rem;
-  line-height: 1.6;
-  text-align: left;
-  word-break: keep-all;
+  background-color: #08070d;
 }
 
 canvas {
   display: block;
-  margin-top: 10px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 10px auto 0;
+  max-width: 100%;
+  height: auto;
+}
+
+h1 {
+  margin: 24px 0 6px;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.intro {
+  max-width: 720px;
+  margin: 0 auto 40px;
+  padding: 0 20px;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  text-align: left;
+  word-break: keep-all;
+  color: #c9cbe0;
+}
+
+.intro b {
+  color: #fff;
+  font-weight: 600;
 }

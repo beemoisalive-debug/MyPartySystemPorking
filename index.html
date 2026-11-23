@@ -1,32 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
   <head>
-    <script src="lib/p5.js"></script>
-    <script src="lib/p5.sound.min.js"></script>
-    
-    
-    
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
-    <link rel="stylesheet" type="text/css" href="style.css">
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>눈물이 꽃이 된다 — Tears in Bloom</title>
 
+    <script src="lib/p5.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
   </head>
   <body>
-    <main>
-    </main>
-    <script src="Particle.js"></script>
+    <main></main>
+
+    <!-- 클래스별 파일. ParticleSystem이 가장 먼저 와야 상속이 된다. -->
+    <script src="Config.js"></script>
+    <script src="Wind.js"></script>
     <script src="ParticleSystem.js"></script>
-    <script src="MorphingTear.js"></script>
+    <script src="TearDrop.js"></script>
+    <script src="Bloom.js"></script>
+    <script src="Garden.js"></script>
+    <script src="Pollen.js"></script>
     <script src="sketch.js"></script>
 
-    <h1> My Party System</h1>
+    <h1>눈물이 꽃이 된다</h1>
     <p class="intro">
-      My Party System은 p5.js로 만든 파티클 시스템 예제입니다.
-      울고 있는 소녀의 눈에서 눈물 입자가 흘러내립니다.
-      입자는 중력을 받아 볼을 타고 떨어지며 서서히 사라지고,
-      그중 일부는 떨어지다가 작은 꽃으로 피어납니다.
-      화면을 누르면 소녀의 두 눈에서 눈물이 터집니다.
-      디아프 수업 연습용으로 만들었습니다.
+      흐느끼는 사람의 눈에서 눈물이 흘러내립니다. 눈물은 중력과 바람을 받아
+      볼을 타고 떨어지고, 땅에 닿은 바로 그 자리에서 꽃이 피어납니다.
+      다 핀 꽃은 꽃가루를 내보내고, 꽃가루도 같은 바람을 타고 흩어집니다.
+      <br /><br />
+      바람은 <b>마우스의 좌우 위치</b> 또는 <b>← → 방향키</b>로 바꿀 수 있습니다.
+      바람이 바뀌면 눈물이 떨어지는 자리, 꽃이 휘는 방향, 꽃가루의 흐름이
+      한꺼번에 달라집니다. 눈물은 화면을 <b>누르고 있는 동안</b>에만 나옵니다.
+      <b>R</b> 키로 꽃밭을 비울 수 있습니다.
     </p>
   </body>
 </html>
